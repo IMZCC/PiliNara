@@ -115,7 +115,7 @@ if ($platform.ToLower() -eq "ios") {
     } else {
         throw "$LASTEXITCODE"
     }
-    git apply $GeetestIOSPatch
+    git apply --allow-empty $GeetestIOSPatch
     if ($LASTEXITCODE -eq 0) {
         Write-Host "$GeetestIOSPatch applied"
     } else {
