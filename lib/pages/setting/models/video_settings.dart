@@ -13,6 +13,7 @@ import 'package:PiliPlus/plugin/pl_player/models/audio_output_type.dart';
 import 'package:PiliPlus/plugin/pl_player/models/hwdec_type.dart';
 import 'package:PiliPlus/services/service_locator.dart';
 import 'package:PiliPlus/utils/filtering_text.dart';
+import 'package:PiliPlus/utils/high_quality_playback.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
@@ -25,6 +26,75 @@ import 'package:material_design_icons_flutter/material_design_icons_flutter.dart
 import 'package:material_ui/material_ui.dart';
 
 List<SettingsModel> get videoSettings => [
+  const SwitchModel(
+    title: '高画质播放（实验性）',
+    subtitle: '非大会员经第三方服务获取高画质。启用后会发送 SESSDATA 等登录凭证，请只配置自己信任或自建的服务。',
+    leading: Icon(Icons.video_settings_outlined),
+    setKey: SettingBoxKey.highQualityPlayback,
+    defaultVal: false,
+  ),
+  NormalModel(
+    title: '高画质服务地址',
+    leading: const Icon(Icons.cloud_outlined),
+    getSubtitle: () => HighQualityPlayback.serverUrl.isEmpty
+        ? '未配置'
+        : HighQualityPlayback.serverUrl,
+    onTap: _showHighQualityServerDialog,
+  ),
+  NormalModel(
+    title: '高画质目标画质',
+    leading: const Icon(Icons.video_settings_outlined),
+    getSubtitle: () =>
+        VideoQuality.fromCode(Pref.highQualityPlaybackQuality).desc,
+    onTap: _showHighQualityQaDialog,
+  ),
+  NormalModel(
+    title: '高画质请求状态',
+    leading: const Icon(Icons.info_outline),
+    getSubtitle: () => HighQualityPlayback.status,
+  ),
+  NormalModel(
+    title: '高画质所用账号',
+    leading: const Icon(Icons.person_outline),
+    getSubtitle: () => HighQualityPlayback.accountDesc,
+  ),
+  NormalModel(
+    title: '最近一次远端请求与响应',
+    leading: const Icon(Icons.code_outlined),
+    onTap: (context, setState) => showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('高画质诊断（Cookie 值已打码）'),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 360,
+          child: SingleChildScrollView(
+            child: SelectableText(
+              [
+                HighQualityPlayback.lastAttempts,
+                HighQualityPlayback.lastRequest,
+                HighQualityPlayback.lastRawResponse,
+              ].join('\n\n'),
+            ),
+          ),
+        ),
+        actions: [TextButton(onPressed: Get.back, child: const Text('关闭'))],
+      ),
+    ),
+  ),
+  const SwitchModel(
+    title: '始终采用服务端流（不比较时长）',
+    subtitle: '关闭后，远端明显更短时保留本地流',
+    leading: Icon(Icons.swap_vert_circle_outlined),
+    setKey: SettingBoxKey.highQualityPlaybackAlwaysAccept,
+    defaultVal: true,
+  ),
+  const SwitchModel(
+    title: '远端 UA 使用桌面 Chrome',
+    leading: Icon(Icons.language_outlined),
+    setKey: SettingBoxKey.highQualityPlaybackDesktopUa,
+    defaultVal: true,
+  ),
   const SwitchModel(
     title: '开启硬解',
     subtitle: '以较低功耗播放视频，若异常卡死请关闭',
@@ -231,6 +301,76 @@ List<SettingsModel> get videoSettings => [
     onTap: _showHwDecDialog,
   ),
 ];
+
+Future<void> _showHighQualityServerDialog(
+  BuildContext context,
+  VoidCallback setState,
+) async {
+  var server = HighQualityPlayback.serverUrl;
+  final result = await showDialog<String>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('高画质服务地址'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('会将 SESSDATA 等登录凭证发送到该地址，请只使用自己信任或自建的服务。留空表示不启用。'),
+          const SizedBox(height: 12),
+          TextFormField(
+            initialValue: server,
+            autofocus: true,
+            keyboardType: TextInputType.url,
+            onChanged: (value) => server = value,
+            decoration: const InputDecoration(hintText: 'https://example.com'),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: Get.back, child: const Text('取消')),
+        TextButton(
+          onPressed: () => Get.back(result: server.trim()),
+          child: const Text('确定'),
+        ),
+      ],
+    ),
+  );
+  if (result == null) return;
+  var url = result;
+  if (url.isNotEmpty && !url.contains('://')) url = 'https://$url';
+  final parsed = Uri.tryParse(url);
+  if (url.isNotEmpty &&
+      (parsed == null ||
+          parsed.host.isEmpty ||
+          (parsed.scheme != 'https' && parsed.scheme != 'http') ||
+          parsed.hasQuery ||
+          parsed.hasFragment ||
+          parsed.userInfo.isNotEmpty)) {
+    SmartDialog.showToast('请输入有效的 HTTP 或 HTTPS 服务地址');
+    return;
+  }
+  url = url.replaceFirst(RegExp(r'/+$'), '');
+  await GStorage.setting.put(SettingBoxKey.highQualityPlaybackServer, url);
+  setState();
+}
+
+Future<void> _showHighQualityQaDialog(
+  BuildContext context,
+  VoidCallback setState,
+) async {
+  final result = await showDialog<int>(
+    context: context,
+    builder: (context) => SelectDialog<int>(
+      title: '高画质目标画质',
+      value: Pref.highQualityPlaybackQuality,
+      values: HighQualityPlayback.qualityOptions
+          .map((quality) => (quality, VideoQuality.fromCode(quality).desc))
+          .toList(),
+    ),
+  );
+  if (result == null) return;
+  await GStorage.setting.put(SettingBoxKey.highQualityPlaybackQuality, result);
+  setState();
+}
 
 Future<void> _showCDNDialog(BuildContext context, VoidCallback setState) async {
   final res = await showDialog<CdnSelectResult>(

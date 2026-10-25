@@ -1,6 +1,12 @@
 // ignore_for_file: constant_identifier_names
 
 abstract final class SettingBoxKey {
+  static const String highQualityPlayback = 'highQualityPlayback',
+      highQualityPlaybackServer = 'highQualityPlaybackServer',
+      highQualityPlaybackQuality = 'highQualityPlaybackQuality',
+      highQualityPlaybackAlwaysAccept = 'highQualityPlaybackAlwaysAccept',
+      highQualityPlaybackDesktopUa = 'highQualityPlaybackDesktopUa';
+
   static const String btmProgressBehavior = 'btmProgressBehavior',
       defaultVideoQa = 'defaultVideoQa',
       defaultVideoQaCellular = 'defaultVideoQaCellular',
@@ -330,8 +336,9 @@ abstract final class SettingBoxKey {
       msgBadgeMode = 'msgBadgeMode',
       msgUnReadTypeV2 = 'msgUnReadTypeV2',
       navBarSort = 'navBarSort',
-      // 旧版「我的页卡片编辑」的键，仅用于首次迁移到 mineTabs（见 Pref.mineTabs）
-      mineCardSort = 'mineCardSort',
+          // 旧版「我的页卡片编辑」的键，仅用于首次迁移到 mineTabs（见 Pref.mineTabs）
+          mineCardSort =
+          'mineCardSort',
       tempPlayerConf = 'tempPlayerConf',
       reduceLuxColor = 'reduceLuxColor',
       liveCdnUrl = 'liveCdnUrl',
@@ -353,9 +360,10 @@ abstract final class LocalCacheKey {
       danmakuFilterRules = 'danmakuFilterRules',
       lastLocalPlayed = 'lastLocalPlayed',
       downloadFolders = 'downloadFolders',
-      /// 2.1.6 及更早的 fork 用它同时存自动归组，现只在首次启动时读一次，
-      /// 取回用户手工建的文件夹（见 DownloadFolderService 的导入逻辑）。
-      legacyDownloadCollections = 'downloadCollections',
+          /// 2.1.6 及更早的 fork 用它同时存自动归组，现只在首次启动时读一次，
+          /// 取回用户手工建的文件夹（见 DownloadFolderService 的导入逻辑）。
+          legacyDownloadCollections =
+          'downloadCollections',
       mixinKey = 'mixinKey',
       timeStamp = 'timeStamp',
       remarkMids = 'remarkMids',

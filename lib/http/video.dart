@@ -32,6 +32,7 @@ import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/app_sign.dart';
 import 'package:PiliPlus/utils/extension/string_ext.dart';
 import 'package:PiliPlus/utils/global_data.dart';
+import 'package:PiliPlus/utils/high_quality_playback.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
 import 'package:PiliPlus/utils/recommend_filter.dart';
 import 'package:PiliPlus/utils/request_utils.dart';
@@ -243,13 +244,16 @@ abstract final class VideoHttp {
   }) async {
     final Map<String, dynamic> params;
     Map<String, dynamic>? data;
+    String? hqUrl;
+    String? hqBody;
 
     switch (videoType) {
       case .ugc || .pugv:
         final dmImgStr = Utils.base64EncodeRandomString(16, 64);
         final dmCoverImgStr = Utils.base64EncodeRandomString(32, 128);
+        final aid = avid ?? (bvid == null ? null : IdUtils.bv2av(bvid));
         params = await WbiSign.makSign({
-          'avid': ?avid,
+          'avid': ?aid,
           'bvid': ?bvid,
           'ep_id': ?epid,
           'season_id': ?seasonId,
@@ -278,6 +282,9 @@ abstract final class VideoHttp {
           'dm_img_inter': '{"ds":[],"wh":[0,0,0],"of":[0,0,0]}',
           'cur_language': ?language,
         });
+        if (Pref.enableHighQualityPlayback) {
+          hqUrl = HighQualityPlayback.buildRequestUrl(params);
+        }
       case .pgc:
         final video = Accounts.video;
         params = await WbiSign.makSign({
@@ -302,6 +309,20 @@ abstract final class VideoHttp {
             "app_id": 100,
           },
         };
+        if (Pref.enableHighQualityPlayback) {
+          hqUrl = HighQualityPlayback.buildRequestUrl(params, api: Api.ogvUrl);
+          hqBody = jsonEncode({
+            ...data,
+            'player_param': const {
+              'fnver': 0,
+              'fnval': 4048,
+              'drm_tech_type': 2,
+              'version_name': '4.10.1',
+              'app_id': 100,
+            },
+            'exp_info': const {'ogv_half_pay': true},
+          });
+        }
     }
 
     try {
@@ -314,15 +335,23 @@ abstract final class VideoHttp {
 
       if (res.data['code'] == 0) {
         late PlayUrlModel data;
+        var isPreview = false;
         switch (videoType) {
           case .ugc:
-            data = PlayUrlModel.fromJson(res.data['data']);
+            final raw = res.data['data'];
+            data = PlayUrlModel.fromJson(raw);
+            isPreview = raw is Map && raw['is_preview'] == 1;
 
           case .pgc || .pugv:
             final result = res.data['data'];
             final videoInfo = result['video_info'];
             if (videoInfo != null) {
               data = PlayUrlModel.fromJson(videoInfo);
+              final playCheck = result['play_check'];
+              isPreview =
+                  videoInfo['is_preview'] == 1 ||
+                  (playCheck is Map &&
+                      playCheck['play_detail'] == 'PLAY_PREVIEW');
               final progress = result['watch_progress'];
               if (progress != null) {
                 data.lastPlayTime =
@@ -331,10 +360,41 @@ abstract final class VideoHttp {
               }
             } else {
               final reason = result['not_playable_reason'];
-              if (reason != null) {
-                return Error(_parseVideoErr(reason['code'], reason['message']));
+              if (hqUrl != null && hqBody != null) {
+                final remote = await HighQualityPlayback.resolveWholePgc(
+                  url: hqUrl,
+                  body: hqBody,
+                  requestedQn: qn,
+                  areaLimit: jsonEncode(res.data).contains('AreaLimitPanel'),
+                );
+                if (remote != null) return Success(remote);
               }
+              return Error(
+                reason == null
+                    ? '未获取到播放地址'
+                    : _parseVideoErr(reason['code'], reason['message']),
+              );
             }
+        }
+        if (hqUrl != null) {
+          if (videoType == .ugc || videoType == .pugv) {
+            await HighQualityPlayback.apply(
+              data,
+              signedUrl: hqUrl,
+              requestedQn: qn,
+              source: videoType.name,
+              isPreview: isPreview,
+            );
+          } else if (hqBody != null) {
+            await HighQualityPlayback.applyPgc(
+              data,
+              url: hqUrl,
+              body: hqBody,
+              requestedQn: qn,
+              isPreview: isPreview,
+              areaLimit: jsonEncode(res.data).contains('AreaLimitPanel'),
+            );
+          }
         }
         return Success(data);
       } else if (epid != null && videoType == .ugc) {
@@ -348,6 +408,15 @@ abstract final class VideoHttp {
           tryLook: tryLook,
           videoType: .pgc,
         );
+      }
+      if (videoType == .pgc && hqUrl != null && hqBody != null) {
+        final remote = await HighQualityPlayback.resolveWholePgc(
+          url: hqUrl,
+          body: hqBody,
+          requestedQn: qn,
+          areaLimit: jsonEncode(res.data).contains('AreaLimitPanel'),
+        );
+        if (remote != null) return Success(remote);
       }
       return Error(_parseVideoErr(res.data['code'], res.data['message']));
     } catch (e, s) {
@@ -1037,7 +1106,8 @@ abstract final class VideoHttp {
         );
         if (applyFullFilter) {
           // 开关开启：全局黑名单 + 完整过滤（时长、播放量、点赞率、标题关键词、推荐屏蔽用户）
-          if (!isWhitelisted && GlobalData().blackMids.contains(i['owner']['mid'])) {
+          if (!isWhitelisted &&
+              GlobalData().blackMids.contains(i['owner']['mid'])) {
             continue;
           }
           final item = HotVideoItemModel.fromJson(i);

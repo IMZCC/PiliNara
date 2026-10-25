@@ -172,7 +172,10 @@ class _PgcPanelState extends State<PgcPanel> {
         child: InkWell(
           borderRadius: const BorderRadius.all(Radius.circular(6)),
           onTap: () {
-            if (item.badge == '会员' && Accounts.mainEqVideo && vipStatus) {
+            if (item.badge == '会员' &&
+                Accounts.mainEqVideo &&
+                vipStatus &&
+                !Pref.enableHighQualityPlayback) {
               SmartDialog.showToast('需要大会员');
             }
             widget.onChangeEpisode(item, manual: true);

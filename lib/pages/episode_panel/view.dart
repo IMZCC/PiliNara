@@ -441,7 +441,8 @@ class EpisodePanelState extends State<EpisodePanel>
               if (isCurrentIndex) return;
               if (episode.badge == "会员" &&
                   Accounts.mainEqVideo &&
-                  vipStatus != 1) {
+                  vipStatus != 1 &&
+                  !Pref.enableHighQualityPlayback) {
                 SmartDialog.showToast('需要大会员');
                 // return;
               }

@@ -66,6 +66,23 @@ extension RegExpListMatch on List<RegExp> {
 }
 
 abstract final class Pref {
+  static bool get enableHighQualityPlayback =>
+      _setting.get(SettingBoxKey.highQualityPlayback, defaultValue: false);
+  static String get highQualityPlaybackServer =>
+      _setting.get(SettingBoxKey.highQualityPlaybackServer, defaultValue: '');
+  static int get highQualityPlaybackQuality => _setting.get(
+    SettingBoxKey.highQualityPlaybackQuality,
+    defaultValue: VideoQuality.super4K.code,
+  );
+  static bool get highQualityPlaybackAlwaysAccept => _setting.get(
+    SettingBoxKey.highQualityPlaybackAlwaysAccept,
+    defaultValue: true,
+  );
+  static bool get highQualityPlaybackDesktopUa => _setting.get(
+    SettingBoxKey.highQualityPlaybackDesktopUa,
+    defaultValue: true,
+  );
+
   static final Box _setting = GStorage.setting;
   static final Box _video = GStorage.video;
   static final Box _localCache = GStorage.localCache;
@@ -1709,8 +1726,10 @@ abstract final class Pref {
 
   /// 思考强度（reasoning_effort）：未干预服务商默认行为时为 'default'。
   static String get aiReasoningEffort {
-    final value =
-        _setting.get(SettingBoxKey.aiReasoningEffort, defaultValue: 'default');
+    final value = _setting.get(
+      SettingBoxKey.aiReasoningEffort,
+      defaultValue: 'default',
+    );
     return value == 'auto' ? 'default' : value;
   }
 

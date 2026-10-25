@@ -73,6 +73,7 @@ class MiniScaffoldState extends State<MiniScaffold>
     }
 
     final LocalHistoryEntry entry = LocalHistoryEntry(
+      popGestureEnabled: true,
       onRemove: () {
         if (!removedEntry &&
             _currentBottomSheet?.widget == bottomSheet &&
