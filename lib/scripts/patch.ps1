@@ -109,7 +109,7 @@ $GeetestIOSPatch = "lib/scripts/geetest_ios.patch"
 $DoubleTapGesturePatch = "lib/scripts/double_tap_gesture.patch"
 
 if ($platform.ToLower() -eq "ios") {
-    git apply $BottomSheetIOSPiliPlusPatch
+    git apply --allow-empty $BottomSheetIOSPiliPlusPatch
     if ($LASTEXITCODE -eq 0) {
         Write-Host "$BottomSheetIOSPiliPlusPatch applied"
     } else {
