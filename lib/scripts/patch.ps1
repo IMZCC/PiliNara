@@ -2,8 +2,8 @@ param(
     [string]$platform = ""
 )
 
-git config --global user.name "ci"
-git config --global user.email "example@example.com"
+git config --global user.name "IMZCC"
+git config --global user.email "i@imzcc.com"
 
 # TODO: remove
 # https://github.com/flutter/flutter/issues/182281
