@@ -310,18 +310,30 @@ abstract final class VideoHttp {
           },
         };
         if (Pref.enableHighQualityPlayback) {
-          hqUrl = HighQualityPlayback.buildRequestUrl(params, api: Api.ogvUrl);
-          hqBody = jsonEncode({
-            ...data,
-            'player_param': const {
-              'fnver': 0,
-              'fnval': 4048,
-              'drm_tech_type': 2,
-              'version_name': '4.10.1',
-              'app_id': 100,
-            },
-            'exp_info': const {'ogv_half_pay': true},
+          // 转交给远端解锁服务的请求必须与网页播放器同构：网页发的是
+          // **GET** /ogv/player/playview，所有参数在 query 里并做 wbi 全签，
+          // body 为空。之前用 App 的 POST+body 旧格式，服务端重放时被 B 站判 fail。
+          final hqParams = await WbiSign.makSign({
+            'x-bili-locale-json':
+                '{"c_locale":{"language":"zh-Hans"},"always_translate":false}',
+            'biz_type': 'ogv',
+            'scene': 'normal',
+            'from_client': 'BROWSER',
+            'ep_id': ?epid,
+            'season_id': ?seasonId,
+            'cid': cid,
+            'qn': 112,
+            'fnver': 0,
+            'fnval': 4048,
+            'drm_tech_type': 3,
+            'version_name': '4.10.4',
+            'app_id': 100,
+            'web_location': '666.25',
+            'x-bili-device-req-json':
+                '{"platform":"web","device":"pc","spmid":"666.25","mobi_app":"web_cn"}',
           });
+          hqUrl = HighQualityPlayback.buildRequestUrl(hqParams, api: Api.ogvUrl);
+          hqBody = null;
         }
     }
 
@@ -360,7 +372,7 @@ abstract final class VideoHttp {
               }
             } else {
               final reason = result['not_playable_reason'];
-              if (hqUrl != null && hqBody != null) {
+              if (hqUrl != null) {
                 final remote = await HighQualityPlayback.resolveWholePgc(
                   url: hqUrl,
                   body: hqBody,
@@ -385,7 +397,7 @@ abstract final class VideoHttp {
               source: videoType.name,
               isPreview: isPreview,
             );
-          } else if (hqBody != null) {
+          } else {
             await HighQualityPlayback.applyPgc(
               data,
               url: hqUrl,
@@ -409,7 +421,7 @@ abstract final class VideoHttp {
           videoType: .pgc,
         );
       }
-      if (videoType == .pgc && hqUrl != null && hqBody != null) {
+      if (videoType == .pgc && hqUrl != null) {
         final remote = await HighQualityPlayback.resolveWholePgc(
           url: hqUrl,
           body: hqBody,

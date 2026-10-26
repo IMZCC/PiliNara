@@ -153,7 +153,7 @@ abstract final class HighQualityPlayback {
   static Future<void> applyPgc(
     PlayUrlModel data, {
     required String url,
-    required String body,
+    String? body,
     required int requestedQn,
     bool areaLimit = false,
     bool isPreview = false,
@@ -163,6 +163,7 @@ abstract final class HighQualityPlayback {
       requestedQn: requestedQn,
       source: 'pgc',
       isPreview: isPreview,
+      areaLimit: areaLimit,
       fetch: () => _fetchPgc(url: url, body: body, areaLimit: areaLimit),
     );
   }
@@ -191,11 +192,11 @@ abstract final class HighQualityPlayback {
   /// [resolveWhole] 的番剧 / 国创 / 影视版本（走 bzview3）
   static Future<PlayUrlModel?> resolveWholePgc({
     required String url,
-    required String body,
+    String? body,
     required int requestedQn,
     bool areaLimit = false,
   }) async {
-    if (!_canRequest(requestedQn)) return null;
+    if (!_canRequest(requestedQn, areaLimit: areaLimit)) return null;
     _setStatus('请求中…');
     _log('resolve(pgc) qn=$requestedQn：本地无可播放流，改由远端整份提供');
     try {
@@ -209,16 +210,23 @@ abstract final class HighQualityPlayback {
   }
 
   /// 是否该向远端服务发起请求（功能开关 / 服务地址 / 画质 / 会员状态）
-  static bool _canRequest(int requestedQn) {
+  ///
+  /// [areaLimit] 为番剧 / 影视的「地区限制」解锁：这类请求是为了拿到本地根本
+  /// 播不了的流（地区不可见），与画质无关，所以不受 1080P 下限约束，否则在
+  /// 低画质下会被直接跳过，表现为「脚本能解锁、App 不能解锁」。
+  static bool _canRequest(int requestedQn, {bool areaLimit = false}) {
     if (!Pref.enableHighQualityPlayback) return false;
     if (serverUrl.isEmpty) {
       status = '未配置服务地址';
       return false;
     }
-    // 1080P 及以下无需处理
-    if (requestedQn < VideoQuality.high1080.code) return false;
-    // 大会员本身即可获取高画质
-    if (Pref.userInfoCache?.vipStatus == 1) return false;
+    // 地区限制解锁与画质无关，任意画质都应放行
+    if (!areaLimit) {
+      // 1080P 及以下无需处理
+      if (requestedQn < VideoQuality.high1080.code) return false;
+      // 大会员本身即可获取高画质
+      if (Pref.userInfoCache?.vipStatus == 1) return false;
+    }
     return true;
   }
 
@@ -289,9 +297,10 @@ abstract final class HighQualityPlayback {
     required int requestedQn,
     required String source,
     required bool isPreview,
+    bool areaLimit = false,
     required Future<PlayUrlModel?> Function() fetch,
   }) async {
-    if (!_canRequest(requestedQn)) return;
+    if (!_canRequest(requestedQn, areaLimit: areaLimit)) return;
     final localDash = data.dash;
     final hasLocalDash = localDash != null && !localDash.video.isNullOrEmpty;
     // 本地既没有 dash 也没有 durl：没有可播放资源，无从下手
@@ -799,10 +808,11 @@ abstract final class HighQualityPlayback {
 
   /// 番剧 / 国创 / 影视：`POST {server}/api/bzview3`
   ///
-  /// `body` 必须是字符串：脚本发的是网页那份请求体的原文，不是 JSON 对象。
+  /// 网页播放器的 playview 是 **GET**（参数全在 url、wbi 全签），此时 [body]
+  /// 为 null，与脚本里 `args[1]?.body === undefined` 一致，服务端只用 url 重放。
   static Future<PlayUrlModel?> _fetchPgc({
     required String url,
-    required String body,
+    String? body,
     required bool areaLimit,
   }) async {
     _attempts.clear();
@@ -810,7 +820,7 @@ abstract final class HighQualityPlayback {
     final remote = await _post('/api/bzview3', {
       'iic': areaLimit,
       'url': url,
-      'body': body,
+      'body': ?body,
       'ui': await _ui(),
     });
     _record('bzview3（番剧/影视）');
